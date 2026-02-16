@@ -22,7 +22,7 @@ function normalize(v: number): number {
 
 export function buildPersonalityProfile(
   artists: SpotifyArtist[],
-  tracks: SpotifyTrack[],
+  _tracks: SpotifyTrack[],
   audioFeatures: AudioFeatures[]
 ): PersonalityProfile {
   const allGenres = artists.flatMap((a) => a.genres);

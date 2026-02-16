@@ -8,7 +8,7 @@ import {
   fetchTopTracks,
   fetchAudioFeatures,
 } from '../services/spotify';
-import type { SpotifyUser, SpotifyArtist, SpotifyTrack } from '../services/spotify';
+import type { SpotifyUser } from '../services/spotify';
 import { buildPersonalityProfile } from '../utils/personality';
 import type { PersonalityProfile } from '../utils/personality';
 
