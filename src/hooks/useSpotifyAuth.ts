@@ -63,28 +63,50 @@ export function useSpotifyAuth() {
     const params = new URLSearchParams(window.location.search);
     const hasCode = params.has('code');
 
-    if (hasCode) {
-      handleCallback().then((t) => {
-        if (t) {
-          setToken(t);
-          setStatus('authenticated');
-          fetchUser(t).then(setUser);
-        } else {
-          setStatus('unauthenticated');
-        }
-      });
-      return;
-    }
+    let timeout: ReturnType<typeof setTimeout>;
+    const clearAuthTimeout = () => clearTimeout(timeout);
 
-    getValidToken().then((t) => {
+    const handleAuthResult = (t: string | null) => {
+      clearAuthTimeout();
       if (t) {
         setToken(t);
         setStatus('authenticated');
-        fetchUser(t).then(setUser);
+        const fetchUserTimeout = setTimeout(fallbackToLogin, 10000);
+        fetchUser(t)
+          .then((u) => {
+            clearTimeout(fetchUserTimeout);
+            setUser(u);
+          })
+          .catch(() => {
+            clearTimeout(fetchUserTimeout);
+            sessionStorage.removeItem('access_token');
+            sessionStorage.removeItem('refresh_token');
+            sessionStorage.removeItem('token_expires_at');
+            setStatus('unauthenticated');
+          });
       } else {
         setStatus('unauthenticated');
       }
-    });
+    };
+
+    const fallbackToLogin = () => {
+      clearAuthTimeout();
+      setStatus('unauthenticated');
+    };
+
+    const runAuth = () => {
+      if (hasCode) {
+        return handleCallback()
+          .then(handleAuthResult)
+          .catch(fallbackToLogin);
+      }
+      return getValidToken()
+        .then(handleAuthResult)
+        .catch(fallbackToLogin);
+    };
+
+    timeout = setTimeout(fallbackToLogin, 5000);
+    runAuth();
   }, []);
 
   return {
