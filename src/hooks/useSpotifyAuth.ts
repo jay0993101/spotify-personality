@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   handleCallback,
   getValidToken,
@@ -21,10 +21,15 @@ export function useSpotifyAuth() {
   const [profile, setProfile] = useState<PersonalityProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const mountedRef = useRef(true);
 
   const login = useCallback(() => {
     setError(null);
-    initiateAuth();
+    try {
+      initiateAuth();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start login');
+    }
   }, []);
 
   const logout = useCallback(() => {
@@ -60,53 +65,72 @@ export function useSpotifyAuth() {
   }, [token]);
 
   useEffect(() => {
+    mountedRef.current = true;
     const params = new URLSearchParams(window.location.search);
     const hasCode = params.has('code');
 
-    let timeout: ReturnType<typeof setTimeout>;
-    const clearAuthTimeout = () => clearTimeout(timeout);
-
-    const handleAuthResult = (t: string | null) => {
-      clearAuthTimeout();
-      if (t) {
-        setToken(t);
-        setStatus('authenticated');
-        const fetchUserTimeout = setTimeout(fallbackToLogin, 10000);
-        fetchUser(t)
-          .then((u) => {
-            clearTimeout(fetchUserTimeout);
-            setUser(u);
-          })
-          .catch(() => {
-            clearTimeout(fetchUserTimeout);
-            sessionStorage.removeItem('access_token');
-            sessionStorage.removeItem('refresh_token');
-            sessionStorage.removeItem('token_expires_at');
-            setStatus('unauthenticated');
-          });
-      } else {
-        setStatus('unauthenticated');
-      }
+    const setStatusSafe = (s: AuthStatus) => {
+      if (mountedRef.current) setStatus(s);
     };
 
-    const fallbackToLogin = () => {
-      clearAuthTimeout();
-      setStatus('unauthenticated');
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let fetchUserTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (fetchUserTimeoutId) clearTimeout(fetchUserTimeoutId);
+    };
+
+    const handleAuthResult = (t: string | null) => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      if (!t) {
+        setStatusSafe('unauthenticated');
+        return;
+      }
+      if (!mountedRef.current) return;
+      setToken(t);
+      setStatusSafe('authenticated');
+      fetchUser(t)
+        .then((u) => {
+          if (fetchUserTimeoutId) clearTimeout(fetchUserTimeoutId);
+          if (mountedRef.current) setUser(u);
+        })
+        .catch(() => {
+          if (fetchUserTimeoutId) clearTimeout(fetchUserTimeoutId);
+          sessionStorage.removeItem('access_token');
+          sessionStorage.removeItem('refresh_token');
+          sessionStorage.removeItem('token_expires_at');
+          setStatusSafe('unauthenticated');
+        });
+      fetchUserTimeoutId = setTimeout(() => {
+        fetchUserTimeoutId = null;
+        sessionStorage.removeItem('access_token');
+        sessionStorage.removeItem('refresh_token');
+        sessionStorage.removeItem('token_expires_at');
+        setStatusSafe('unauthenticated');
+      }, 10000);
+    };
+
+    const fallback = () => {
+      cleanup();
+      setStatusSafe('unauthenticated');
     };
 
     const runAuth = () => {
-      if (hasCode) {
-        return handleCallback()
-          .then(handleAuthResult)
-          .catch(fallbackToLogin);
-      }
-      return getValidToken()
-        .then(handleAuthResult)
-        .catch(fallbackToLogin);
+      const p = hasCode ? handleCallback() : getValidToken();
+      return p.then(handleAuthResult).catch(fallback);
     };
 
-    timeout = setTimeout(fallbackToLogin, 5000);
+    timeoutId = setTimeout(fallback, 5000);
     runAuth();
+
+    return () => {
+      mountedRef.current = false;
+      cleanup();
+    };
   }, []);
 
   return {

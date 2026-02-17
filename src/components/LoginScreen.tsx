@@ -1,4 +1,9 @@
-export function LoginScreen({ onLogin }: { onLogin: () => void }) {
+interface LoginScreenProps {
+  onLogin: () => void;
+  error?: string | null;
+}
+
+export function LoginScreen({ onLogin, error }: LoginScreenProps) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6">
       <div className="max-w-md w-full text-center">
@@ -9,6 +14,9 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
           Connect your Spotify and discover your music personality based on how
           you really listen.
         </p>
+        {error && (
+          <p className="text-red-400 text-sm mb-4">{error}</p>
+        )}
         <button
           onClick={onLogin}
           className="inline-flex items-center gap-3 px-8 py-4 rounded-full bg-[#1DB954] text-black font-semibold text-lg hover:bg-[#1ed760] transition-colors"

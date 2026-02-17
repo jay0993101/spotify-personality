@@ -25,7 +25,7 @@ export function buildPersonalityProfile(
   _tracks: SpotifyTrack[],
   audioFeatures: AudioFeatures[]
 ): PersonalityProfile {
-  const allGenres = artists.flatMap((a) => a.genres);
+  const allGenres = artists.flatMap((a) => a.genres ?? []);
   const genreCounts = allGenres.reduce<Record<string, number>>((acc, g) => {
     acc[g] = (acc[g] ?? 0) + 1;
     return acc;

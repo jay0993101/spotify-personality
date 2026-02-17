@@ -36,7 +36,7 @@ export function ProfileScreen({
   onLogout,
 }: ProfileScreenProps) {
   const avatar = user.images?.[0]?.url;
-  const displayName = user.display_name || user.email?.split('@')[0] || 'Listener';
+  const displayName = user.display_name || (user.email ? user.email.split('@')[0] : null) || 'Listener';
 
   return (
     <div className="min-h-screen">

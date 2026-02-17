@@ -64,51 +64,54 @@ export async function initiateAuth(): Promise<void> {
 }
 
 export async function handleCallback(): Promise<string | null> {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code');
-  const state = params.get('state');
-  const error = params.get('error');
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state');
+    const error = params.get('error');
 
-  if (error) {
-    console.error('Spotify auth error:', error);
+    if (error) {
+      return null;
+    }
+
+    const savedState = sessionStorage.getItem('auth_state');
+    if (state !== savedState || !code) {
+      return null;
+    }
+
+    const codeVerifier = sessionStorage.getItem('code_verifier');
+    if (!codeVerifier) return null;
+
+    const response = await fetch(SPOTIFY_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: getClientId(),
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: getRedirectUri(),
+        code_verifier: codeVerifier,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return null;
+    }
+
+    const expiresAt = Date.now() + (data.expires_in ?? 3600) * 1000;
+    sessionStorage.setItem('access_token', data.access_token);
+    sessionStorage.setItem('refresh_token', data.refresh_token ?? '');
+    sessionStorage.setItem('token_expires_at', String(expiresAt));
+    sessionStorage.removeItem('code_verifier');
+    sessionStorage.removeItem('auth_state');
+
+    const path = window.location.pathname || '/';
+    window.history.replaceState({}, '', path);
+    return data.access_token;
+  } catch {
     return null;
   }
-
-  const savedState = sessionStorage.getItem('auth_state');
-  if (state !== savedState || !code) {
-    return null;
-  }
-
-  const codeVerifier = sessionStorage.getItem('code_verifier');
-  if (!codeVerifier) return null;
-
-  const response = await fetch(SPOTIFY_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: getClientId(),
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: getRedirectUri(),
-      code_verifier: codeVerifier,
-    }),
-  });
-
-  const data = await response.json();
-  if (!response.ok) {
-    console.error('Token exchange failed:', data);
-    return null;
-  }
-
-  const expiresAt = Date.now() + data.expires_in * 1000;
-  sessionStorage.setItem('access_token', data.access_token);
-  sessionStorage.setItem('refresh_token', data.refresh_token ?? '');
-  sessionStorage.setItem('token_expires_at', String(expiresAt));
-  sessionStorage.removeItem('code_verifier');
-  sessionStorage.removeItem('auth_state');
-
-  window.history.replaceState({}, '', window.location.pathname);
-  return data.access_token;
 }
 
 export async function refreshAccessToken(): Promise<string | null> {
@@ -139,14 +142,20 @@ export async function refreshAccessToken(): Promise<string | null> {
 }
 
 export async function getValidToken(): Promise<string | null> {
-  let token = sessionStorage.getItem('access_token');
-  const expiresAt = sessionStorage.getItem('token_expires_at');
+  try {
+    const token = sessionStorage.getItem('access_token');
+    const expiresAt = sessionStorage.getItem('token_expires_at');
+    const expiresAtNum = expiresAt ? parseInt(expiresAt, 10) : 0;
 
-  if (token && expiresAt && Date.now() < parseInt(expiresAt, 10) - 60000) {
-    return token;
+    if (token && expiresAtNum && Date.now() < expiresAtNum - 60000) {
+      return token;
+    }
+
+    const refreshed = await refreshAccessToken();
+    return refreshed ?? sessionStorage.getItem('access_token');
+  } catch {
+    return null;
   }
-
-  return refreshAccessToken() ?? sessionStorage.getItem('access_token');
 }
 
 async function spotifyFetch<T>(
@@ -176,22 +185,22 @@ async function spotifyFetch<T>(
 export interface SpotifyUser {
   id: string;
   display_name: string | null;
-  email: string;
-  images: { url: string }[];
+  email?: string | null;
+  images?: { url: string }[];
 }
 
 export interface SpotifyArtist {
   id: string;
   name: string;
-  genres: string[];
-  images: { url: string; height: number; width: number }[];
+  genres?: string[];
+  images?: { url: string; height: number; width: number }[];
 }
 
 export interface SpotifyTrack {
   id: string;
   name: string;
-  artists: { id: string; name: string }[];
-  album: { images: { url: string }[] };
+  artists?: { id: string; name: string }[];
+  album?: { images: { url: string }[] };
 }
 
 export interface AudioFeatures {

@@ -16,14 +16,14 @@ function App() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
         <div className="w-8 h-8 border-2 border-stone-600 border-t-[#1DB954] rounded-full animate-spin" />
       </div>
     );
   }
 
   if (status === 'unauthenticated') {
-    return <LoginScreen onLogin={login} />;
+    return <LoginScreen onLogin={login} error={error} />;
   }
 
   if (user) {
@@ -40,7 +40,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
       <div className="w-8 h-8 border-2 border-stone-600 border-t-[#1DB954] rounded-full animate-spin" />
     </div>
   );
