@@ -124,7 +124,9 @@ export function useSpotifyAuth() {
       return p.then(handleAuthResult).catch(fallback);
     };
 
-    timeoutId = setTimeout(fallback, 5000);
+    if (!hasCode) {
+      timeoutId = setTimeout(fallback, 8000);
+    }
     runAuth();
 
     return () => {

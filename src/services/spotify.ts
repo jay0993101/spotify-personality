@@ -20,7 +20,9 @@ function getClientId(): string {
 }
 
 function getRedirectUri(): string {
-  return window.location.origin + window.location.pathname;
+  const raw = window.location.pathname || '/';
+  const path = raw === '/' ? '/' : raw.replace(/\/+$/, '') + '/';
+  return window.location.origin + path;
 }
 
 function generateRandomString(length: number): string {
@@ -106,7 +108,8 @@ export async function handleCallback(): Promise<string | null> {
     sessionStorage.removeItem('code_verifier');
     sessionStorage.removeItem('auth_state');
 
-    const path = window.location.pathname || '/';
+    const raw = window.location.pathname || '/';
+    const path = raw === '/' ? '/' : raw.replace(/\/+$/, '') + '/';
     window.history.replaceState({}, '', path);
     return data.access_token;
   } catch {
