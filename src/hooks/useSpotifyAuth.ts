@@ -114,8 +114,9 @@ export function useSpotifyAuth() {
       }, 10000);
     };
 
-    const fallback = () => {
+    const fallback = (err?: unknown) => {
       cleanup();
+      if (mountedRef.current && err instanceof Error) setError(err.message);
       setStatusSafe('unauthenticated');
     };
 

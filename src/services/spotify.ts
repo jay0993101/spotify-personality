@@ -66,24 +66,32 @@ export async function initiateAuth(): Promise<void> {
 }
 
 export async function handleCallback(): Promise<string | null> {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const state = params.get('state');
+  const error = params.get('error');
+
+  // Clear URL immediately so a second run (e.g. React Strict Mode) doesn't
+  // try to exchange the same code and get "code already used".
+  const raw = window.location.pathname || '/';
+  const path = raw === '/' ? '/' : raw.replace(/\/+$/, '') + '/';
+  window.history.replaceState({}, '', path);
+
+  if (error) {
+    throw new Error(error === 'access_denied' ? 'You denied access.' : `Spotify: ${error}`);
+  }
+
+  const savedState = sessionStorage.getItem('auth_state');
+  if (state !== savedState || !code) {
+    throw new Error('Invalid state or missing code. Try logging in again.');
+  }
+
+  const codeVerifier = sessionStorage.getItem('code_verifier');
+  if (!codeVerifier) {
+    throw new Error('Session expired. Try logging in again.');
+  }
+
   try {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const state = params.get('state');
-    const error = params.get('error');
-
-    if (error) {
-      return null;
-    }
-
-    const savedState = sessionStorage.getItem('auth_state');
-    if (state !== savedState || !code) {
-      return null;
-    }
-
-    const codeVerifier = sessionStorage.getItem('code_verifier');
-    if (!codeVerifier) return null;
-
     const response = await fetch(SPOTIFY_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -98,7 +106,8 @@ export async function handleCallback(): Promise<string | null> {
 
     const data = await response.json();
     if (!response.ok) {
-      return null;
+      const msg = data.error_description ?? data.error ?? `HTTP ${response.status}`;
+      throw new Error(msg);
     }
 
     const expiresAt = Date.now() + (data.expires_in ?? 3600) * 1000;
@@ -108,12 +117,10 @@ export async function handleCallback(): Promise<string | null> {
     sessionStorage.removeItem('code_verifier');
     sessionStorage.removeItem('auth_state');
 
-    const raw = window.location.pathname || '/';
-    const path = raw === '/' ? '/' : raw.replace(/\/+$/, '') + '/';
-    window.history.replaceState({}, '', path);
     return data.access_token;
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof Error) throw err;
+    throw new Error('Login failed. Try again.');
   }
 }
 
